@@ -2,15 +2,41 @@ require 'fileutils'
 require 'open-uri'
 require 'digest'
 
+def format_mb(size)
+  conv = [ 'b', 'kb', 'mb', 'gb', 'tb', 'pb', 'eb' ];
+  scale = 1024;
+
+  ndx=1
+  if( size < 2*(scale**ndx)  ) then
+    return "#{(size)} #{conv[ndx-1]}"
+  end
+  size=size.to_f
+  [2,3,4,5,6,7].each do |ndx|
+    if( size < 2*(scale**ndx)  ) then
+      return "#{'%.2f' % (size/(scale**(ndx-1)))} #{conv[ndx-1]}"
+    end
+  end
+  ndx=7
+  return "#{'%.2f' % (size/(scale**(ndx-1)))} #{conv[ndx-1]}"
+end
+
 puts '********************************************'
 puts '* Apache Blur Incubating Release Validator *'
 puts '********************************************'
-puts 'Enter version:'
-version = gets.chomp
-puts 'Enter release candidate (enter for blank):'
-rc = gets.chomp
-url = "https://dist.apache.org/repos/dist/dev/incubator/blur/#{version}-incubating/"
+if ARGV.length > 0
+  version = ARGV[0]
+else
+  puts 'Enter version:'
+  version = gets.chomp
+end
+if ARGV.length > 1
+  rc = ARGV[1]
+else
+  puts 'Enter release candidate (enter for blank):'
+  rc = gets.chomp
+end
 
+url = "https://dist.apache.org/repos/dist/dev/incubator/blur/#{version}-incubating/"
 tag = "release-#{version}-incubating"
 unless rc.nil? || rc.empty?
   tag += "-#{rc}"
@@ -29,8 +55,14 @@ dist_files = dist_html.scan(/apache-blur-#{version}-incubating.*\..*"/)
 dist_files.each_with_index do |dist_file, idx|
   clean_dist_file = dist_file.chomp('"')
   open(File.join(tag, 'dist', clean_dist_file), 'wb') do |file|
-    puts "Fetching #{idx+1} of #{dist_files.size}"
-    file << open(url.chomp('/') + '/' + clean_dist_file).read
+    puts "\rFetching #{idx+1} of #{dist_files.size}".ljust(60)
+    length = 0
+    file_url = url.chomp('/') + '/' + clean_dist_file
+    file << open(file_url,
+      :progress_proc => lambda{|size| print "\r#{format_mb(size)} of #{length}".ljust(60)},
+      :content_length_proc => lambda{|size| length = format_mb(size)},
+      :read_timeout => 30
+    ).read
   end
 end
 
@@ -66,7 +98,7 @@ Dir.glob(File.join(tag, 'dist', '*.gz')) do |file|
 end
 
 puts 'Verifying src build...'
-`git clone https://git-wip-us.apache.org/repos/asf/incubator-blur.git #{File.join(tag, 'src')} 2>&1`
+`git clone -q https://git-wip-us.apache.org/repos/asf/incubator-blur.git #{File.join(tag, 'src')} 2>&1`
 `pushd #{File.join(tag, 'src')}; git checkout -b tags/#{tag} 2>&1; popd`
 `pushd #{File.join(tag, 'src')}; mvn install -Dhadoop2 -DskipTests 2>&1; popd`
 dist_src = `tar -tf #{File.join(tag,'dist')}/apache-blur-#{version}-incubating-src.tar.gz`
