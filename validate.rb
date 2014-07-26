@@ -1,6 +1,9 @@
+#!/usr/bin/env ruby
+
 require 'fileutils'
 require 'open-uri'
 require 'digest'
+require 'date'
 
 def format_mb(size)
   conv = [ 'b', 'kb', 'mb', 'gb', 'tb', 'pb', 'eb' ];
@@ -66,7 +69,7 @@ dist_files.each_with_index do |dist_file, idx|
   end
 end
 
-puts 'Verifying checksums...'
+puts "\rVerifying checksums..."
 Dir.glob(File.join(tag, 'dist', '*.gz')) do |file|
   actual_md5 = "MD5 (#{File.basename(file)}) = #{Digest::MD5.file(file).hexdigest}"
   proposed_md5 = File.read("#{file}.md5").chomp
@@ -99,7 +102,7 @@ end
 
 puts 'Verifying src build...'
 `git clone -q https://git-wip-us.apache.org/repos/asf/incubator-blur.git #{File.join(tag, 'src')} 2>&1`
-`pushd #{File.join(tag, 'src')}; git checkout -b tags/#{tag} 2>&1; popd`
+`pushd #{File.join(tag, 'src')}; git checkout tags/#{tag} 2>&1; popd`
 `pushd #{File.join(tag, 'src')}; mvn install -Dhadoop2 -DskipTests 2>&1; popd`
 dist_src = `tar -tf #{File.join(tag,'dist')}/apache-blur-#{version}-incubating-src.tar.gz`
 compiled_src = `tar -tf #{File.join(tag,'src','distribution','target')}/apache-blur-#{version}-incubating-src.tar.gz`
@@ -153,4 +156,13 @@ if missing_licenses.empty?
 else
   puts "fail.....Libs missing from License File"
   missing_licenses.each{|entry| puts entry}
+end
+
+puts 'Veriying copyright in NOTICE...'
+copyright_line = File.readlines(File.join(tag, 'dist', "apache-blur-#{version}-incubating-src", 'NOTICE'))[1]
+puts copyright_line
+if copyright_line.include?(DateTime.now.year.to_s)
+  puts "\u2713.....Current year is in NOTICE"
+else
+  puts 'fail.....Current year is missing from NOTICE'
 end
