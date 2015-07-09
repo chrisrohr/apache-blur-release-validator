@@ -81,13 +81,16 @@ Dir.glob(File.join(tag, 'dist', '*.gz')) do |file|
   end
 
   actual_sha1 = "#{Digest::SHA1.file(file).hexdigest}  #{File.basename(file)}"
+ if (File.exists?("#{file}.sha1")) 
   proposed_sha1 = File.read("#{file}.sha1").chomp
-
   if actual_sha1 == proposed_sha1
     puts "\u2713.....#{File.basename(file)} - SHA1"
   else
     puts "fail.....#{File.basename(file)} - SHA1"
   end
+ else
+   puts "fail.....#{File.basename(file)} - SHA1 NOT FOUND"
+ end
 end
 
 puts 'Verifying signatures...'
